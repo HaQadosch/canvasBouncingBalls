@@ -16,7 +16,7 @@ export interface ICircle {
 interface ICircleHandler {
   add: (c: Pick<ICircle, 'origX' | 'origY'>) => number
   circles: ICircle[]
-  drawCircle: (transform: (before: Pick<ICircle, 'timestamp' | 'origY'>) => Partial<ICircle>) => (circle: ICircle) => void
+  drawCircle: (transform: (before: Pick<ICircle, 'timestamp' | 'origY'>) => Pick<ICircle, 'posY'>) => (circle: ICircle) => void
 }
 
 /**
@@ -72,19 +72,30 @@ export const createCircles = (ctx: CanvasRenderingContext2D, colorRange: Readonl
   const drawCircle: ICircleHandler['drawCircle'] = transform => (currentCircle: ICircle): void => {
     const { posX, radius = 0, color = '#FFF', timestamp = Date.now(), origY, dy, dx } = currentCircle
     const { posY } = transform({ timestamp, origY })
-    const offsetX = 0
     const withinBorderX = (x: number) => Math.max(radius, Math.min(x, ctx.canvas.width - radius))
     const withinBorderY = (y: number) => Math.max(radius, Math.min(y, ctx.canvas.height - radius))
-    const safeX = withinBorderX(posX + offsetX + dx)
-    const safeY = withinBorderY((posY || 0) + dy)
+    const safeX = withinBorderX(posX + dx)
+    const safeY = withinBorderY(posY + dy)
 
     ctx.beginPath();
     ctx.arc(safeX, safeY, radius, 0, 2 * Math.PI, true);
     ctx.fillStyle = color;
     ctx.fill()
 
-    if ((posY || 0) > ctx.canvas.height) {
-      updateCircle(currentCircle, { ...currentCircle, posY: safeY, timestamp: Date.now() })
+    if (posY > ctx.canvas.height) {
+      updateCircle(currentCircle, {
+        ...currentCircle,
+        origX: safeX, origY: safeY,
+        posY: safeY,
+        timestamp: Date.now(),
+        dx: dx / 2, dy: dy / 2
+      })
+    } else if (0 > posX || posX > ctx.canvas.height) {
+      updateCircle(currentCircle, {
+        ...currentCircle,
+        posX: safeX,
+        dx: - dx
+      })
     } else {
       updateCircle(currentCircle, { ...currentCircle, posY: safeY, posX: safeX })
     }
