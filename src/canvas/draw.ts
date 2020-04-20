@@ -1,18 +1,22 @@
-import { falling, speed } from './../utils/physics';
+import { falling } from './../utils/physics';
 import { getRandomArbitrary, shuffle } from "../utils/shuffle";
 
 export interface ICircle {
-  x: number,
-  y: number,
+  origX: number,
+  origY: number,
+  posX: number,
+  posY: number,
+  dx: number
+  dy: number
   color?: string,
   radius?: number,
   timestamp?: number,
 }
 
 interface ICircleHandler {
-  add: (c: ICircle) => number
+  add: (c: Pick<ICircle, 'origX' | 'origY'>) => number
   circles: ICircle[]
-  drawCircle: (transform: (before: ICircle) => ICircle) => (circle: ICircle) => void
+  drawCircle: (transform: (before: Pick<ICircle, 'timestamp' | 'origY'>) => Partial<ICircle>) => (circle: ICircle) => void
 }
 
 /**
@@ -25,12 +29,23 @@ interface ICircleHandler {
 export const createCircles = (ctx: CanvasRenderingContext2D, colorRange: Readonly<Array<string>>): ICircleHandler => {
   const circles: Array<ICircle> = []
 
-  const addToCircles = (c: ICircle) => circles.push({
-    ...c,
-    radius: radii[getRandomArbitrary(0, radii.length)],
-    color: randomColors(),
-    timestamp: Date.now()
-  })
+  const addToCircles = (c: Pick<ICircle, 'origX' | 'origY'>) => {
+
+    return circles.push({
+      ...c,
+      posX: c.origX,
+      posY: c.origY,
+      dx: getRandomArbitrary(-10, 10),
+      dy: getRandomArbitrary(-50, -20),
+      radius: radii[getRandomArbitrary(0, radii.length)],
+      color: randomColors(),
+      timestamp: Date.now(),
+    })
+  }
+
+  const updateCircle = (targetCircle: ICircle, newCircle: ICircle) => {
+    circles[circles.findIndex(elt => Object.is(elt, targetCircle))] = newCircle
+  }
 
   /**
    * @returns a function that will pick a color at random from the colorRange.
@@ -54,14 +69,25 @@ export const createCircles = (ctx: CanvasRenderingContext2D, colorRange: Readonl
     }
   })()
 
-  const drawCircle = (transform: (before: ICircle) => ICircle) => ({ x, y, radius = 0, color = '#FFF', timestamp = Date.now() }: ICircle): void => {
-    const { x: offsetX, y: offsetY } = transform({ x: 0, y: 0, timestamp, radius })
-    ctx.beginPath();
+  const drawCircle: ICircleHandler['drawCircle'] = transform => (currentCircle: ICircle): void => {
+    const { posX, radius = 0, color = '#FFF', timestamp = Date.now(), origY, dy, dx } = currentCircle
+    const { posY } = transform({ timestamp, origY })
+    const offsetX = 0
     const withinBorderX = (x: number) => Math.max(radius, Math.min(x, ctx.canvas.width - radius))
     const withinBorderY = (y: number) => Math.max(radius, Math.min(y, ctx.canvas.height - radius))
-    ctx.arc(withinBorderX(x + offsetX), withinBorderY(y + offsetY), radius, 0, 2 * Math.PI, true);
+    const safeX = withinBorderX(posX + offsetX + dx)
+    const safeY = withinBorderY((posY || 0) + dy)
+
+    ctx.beginPath();
+    ctx.arc(safeX, safeY, radius, 0, 2 * Math.PI, true);
     ctx.fillStyle = color;
     ctx.fill()
+
+    if ((posY || 0) > ctx.canvas.height) {
+      updateCircle(currentCircle, { ...currentCircle, posY: safeY, timestamp: Date.now() })
+    } else {
+      updateCircle(currentCircle, { ...currentCircle, posY: safeY, posX: safeX })
+    }
   }
 
   const radii = [5, 10, 15, 20, 25]
@@ -77,7 +103,7 @@ export const createCircles = (ctx: CanvasRenderingContext2D, colorRange: Readonl
 const animate = ({ circles, drawCircle }: ICircleHandler, context: CanvasRenderingContext2D) => {
   context.clearRect(0, 0, context.canvas.width, context.canvas.height)
   circles.forEach(circle => {
-    drawCircle(c => falling(speed(c)))(circle)
+    drawCircle(falling)(circle)
   })
 }
 
@@ -89,7 +115,7 @@ interface drawArgs {
 
 export const draw = ({ context, circles, setOnDelete }: drawArgs): void => {
   const handleClick = ({ clientX, clientY }: MouseEvent) => {
-    circles.add({ x: clientX, y: clientY })
+    circles.add({ origX: clientX, origY: clientY })
   }
 
   const handleInterval = () => {
