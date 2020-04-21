@@ -96,7 +96,7 @@ export const createCircles = (ctx: CanvasRenderingContext2D, colorRange: Readonl
         origX: safeX, origY: safeY,
         posY: safeY,
         timestamp: Date.now(),
-        dy: -dy
+        dy: -(dy / 2)
       })
     } else if (leftBorder >= posX || posX >= rightBorder) {
       updateCircle(currentCircle, {
