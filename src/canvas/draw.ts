@@ -36,7 +36,7 @@ export const createCircles = (ctx: CanvasRenderingContext2D, colorRange: Readonl
       posX: c.origX,
       posY: c.origY,
       dx: getRandomArbitrary(-10, 10),
-      dy: getRandomArbitrary(-50, -20),
+      dy: getRandomArbitrary(-10, 10),
       radius: radii[getRandomArbitrary(0, radii.length)],
       color: randomColors(),
       timestamp: Date.now(),
@@ -70,34 +70,42 @@ export const createCircles = (ctx: CanvasRenderingContext2D, colorRange: Readonl
   })()
 
   const drawCircle: ICircleHandler['drawCircle'] = transform => (currentCircle: ICircle): void => {
-    const { posX, radius = 0, color = '#FFF', timestamp = Date.now(), origY, dy, dx } = currentCircle
-    const { posY } = transform({ timestamp, origY })
-    const withinBorderX = (x: number) => Math.max(radius, Math.min(x, ctx.canvas.width - radius))
-    const withinBorderY = (y: number) => Math.max(radius, Math.min(y, ctx.canvas.height - radius))
-    const safeX = withinBorderX(posX + dx)
-    const safeY = withinBorderY(posY + dy)
+    let { posX, radius = 0, color = '#FFF', timestamp = Date.now(), origY, dy, dx, posY } = currentCircle
+    // let { posY } = transform({ timestamp, origY })
+
+    const leftBorder = radius
+    const rightBorder = ctx.canvas.width - radius
+    const floor = ctx.canvas.height - radius
+    const withinBorderX = (x: number) => Math.max(leftBorder, Math.min(x, rightBorder))
+    const withinBorderY = (y: number) => Math.max(radius, Math.min(y, floor))
+
+    posX = posX + dx
+    posY = posY + dy
+    const safeX = withinBorderX(posX)
+    const safeY = withinBorderY(posY)
 
     ctx.beginPath();
     ctx.arc(safeX, safeY, radius, 0, 2 * Math.PI, true);
     ctx.fillStyle = color;
     ctx.fill()
 
-    if (posY > ctx.canvas.height) {
+    // Boundaries
+    if (posY >= floor) {
       updateCircle(currentCircle, {
         ...currentCircle,
         origX: safeX, origY: safeY,
         posY: safeY,
         timestamp: Date.now(),
-        dx: dx / 2, dy: dy / 2
+        dy: -dy
       })
-    } else if (0 > posX || posX > ctx.canvas.height) {
+    } else if (leftBorder >= posX || posX >= rightBorder) {
       updateCircle(currentCircle, {
         ...currentCircle,
         posX: safeX,
         dx: - dx
       })
     } else {
-      updateCircle(currentCircle, { ...currentCircle, posY: safeY, posX: safeX })
+      updateCircle(currentCircle, { ...currentCircle, posY: safeY, posX: safeX, dy: (dy * .99) + .25 })
     }
   }
 
